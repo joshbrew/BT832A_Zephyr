@@ -1,7 +1,7 @@
 # BT832A_Zephyr
 Working repository for the BT832A test design. 
 
-You might need to install a zephyr project fresh with the nordicnrf52 platform. Try just running opening the project and seeing if it asks to install dependencies.
+You might need to install a zephyr project fresh with the nordicnrf52 platform. Try just opening the project folder from the PlatformIO home and seeing if it asks to install dependencies.
 
 Place the bt832a_ads131m08.json in `C:/Users/[you]/.platformio/platforms/nordicnrf52/boards`
 
