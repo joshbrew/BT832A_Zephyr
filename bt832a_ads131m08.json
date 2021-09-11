@@ -17,7 +17,7 @@
     "mcu": "nrf52832",
     "variant": "bt832a_ads131m08",
     "bsp": {
-      "name": "JoshB_JacobT"
+      "name": "JoshB_JacobT_BojanJ"
     },
     "softdevice": {
       "sd_flags": "-DS132",
@@ -26,7 +26,7 @@
       "sd_fwid": "0x00B7"
     },
     "zephyr": {
-       "variant": "nrf52_bt832a_ads131m08"
+       "variant": "nrf52_adafruit_feather"
     }
   },
   "connectivity": [
@@ -57,5 +57,5 @@
     ]
   },
   "url": "https://brainsatplay.com",
-  "vendor": "JoshB_JacobT"
+  "vendor": "JoshB_JacobT_BojanJ"
 }
