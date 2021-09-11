@@ -8,7 +8,7 @@ class Biquad {
   float freq,sps,Q,dbGain,a0,a1,a2,b0,b1,b2,x1,x2,y1,y2,A,omega,sn,cs,alpha,beta;
 
 
-  Biquad(const String& typein, float freqin,float spsin,float Qin=1/sqrt(2),float dbGainin=0) {
+  Biquad(const int& typein, float freqin,float spsin,float Qin=1/sqrt(2),float dbGainin=0) {
     //types = ['lowpass','highpass','bandpass','notch','peak','lowshelf','highshelf'];
 
     freq = freqin;
@@ -29,19 +29,19 @@ class Biquad {
     alpha = sn/(2*Q);
     beta = sqrt(A+A);
 
-    if(typein == "lowpass") {
+    if(typein == 0) {
       lowpass(A,sn,cs,alpha,beta);
-    } else if (typein == "highpass") {
+    } else if (typein == 1) {
       highpass(A,sn,cs,alpha,beta);
-    } else if (typein == "bandpass") {
+    } else if (typein == 2) {
       bandpass(A,sn,cs,alpha,beta);
-    } else if (typein == "notch") {
+    } else if (typein == 3) {
       notch(A,sn,cs,alpha,beta);
-    } else if (typein == "peak") {
+    } else if (typein == 4) {
       peak(A,sn,cs,alpha,beta);
-    } else if (typein == "lowshelf") {
+    } else if (typein == 5) {
       lowshelf(A,sn,cs,alpha,beta);
-    } else if (typein == "highshelf") {
+    } else if (typein == 6) {
       highshelf(A,sn,cs,alpha,beta);
     }
 
@@ -186,13 +186,13 @@ class DCBlocker {
 
 //Macros
 Biquad makeNotchFilter(float frequency,float sps,float bandwidth) {
-  return Biquad("notch",frequency,sps,Biquad::calcNotchQ(frequency,bandwidth),0);
+  return Biquad(3,frequency,sps,Biquad::calcNotchQ(frequency,bandwidth),0);
 }
 
 Biquad makeBandpassFilter (float freqStart, float freqEnd, float sps, float resonance=0) {
   float r = resonance;
   if (r == 0) { r = pow(10,floor(log10(freqEnd))); }
-  return Biquad("bandpass",
+  return Biquad(2,
       Biquad::calcCenterFrequency(freqStart,freqEnd),
       sps,
       Biquad::calcBandpassQ(Biquad::calcCenterFrequency(freqStart,freqEnd),Biquad::calcBandwidth(freqStart,freqEnd),resonance),

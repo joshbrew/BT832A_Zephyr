@@ -26,7 +26,7 @@
       "sd_fwid": "0x00B7"
     },
     "zephyr": {
-       "variant": "nrf52_adafruit_feather"
+       "variant": "nrf52dk_nrf52832"
     }
   },
   "connectivity": [
@@ -46,7 +46,7 @@
     "maximum_size": 192000,
     "require_upload_port": true,
     "speed": 115200,
-    "protocol": "nrfutil",
+    "protocol": "jlink",
     "protocols": [
       "jlink",
       "nrfjprog",
