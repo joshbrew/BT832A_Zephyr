@@ -5,7 +5,7 @@
     },
     "core": "nRF5",
     "cpu": "cortex-m4",
-    "extra_flags": "-DNRF52832_XXAA -DNRF52",
+    "extra_flags": "-DARDUINO_NRF52_DK",
     "f_cpu": "64000000L",
     "hwids": [
       [
@@ -33,17 +33,25 @@
     "bluetooth"
   ],
   "debug": {
+    "default_tools": [
+      "jlink"
+    ],
     "jlink_device": "nRF52832_xxAA",
+    "onboard_tools": [
+      "cmsis-dap",
+      "jlink"
+    ],
     "svd_path": "nrf52.svd"
   },
   "frameworks": [
     "arduino",
+    "mbed",
     "zephyr"
   ],
   "name": "BT832A_ADS131M08",
   "upload": {
-    "maximum_ram_size": 24000,
-    "maximum_size": 192000,
+    "maximum_ram_size": 24576,
+    "maximum_size": 196608,
     "require_upload_port": true,
     "speed": 115200,
     "protocol": "jlink",
@@ -53,7 +61,8 @@
       "nrfutil",
       "stlink",
       "cmsis-dap",
-      "blackmagic"
+      "blackmagic",
+      "mbed"
     ]
   },
   "url": "https://brainsatplay.com",
