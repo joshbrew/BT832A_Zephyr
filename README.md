@@ -3,9 +3,9 @@ Working repository for the BT832A test design.
 
 With PlatformIO installed and the Nordic nRF52 platform installed from the main menu:
 
-Place the bt832a_ads131m08.json in `C:/Users/[you]/.platformio/platforms/nordicnrf52/boards`
+Compile the project with `pio run` command from the terminal (`View -> Terminal`)
 
-Open the folder in vscode with platformIO extension installed and then click the platformIO start button (tiny home icon on bottom bar)
+More details about `pio` commands can be found here [here](https://docs.platformio.org/en/latest/core/quickstart.html#quick-start)
 
 There appears to be an MPU-6050 example for Zephyr here https://github.com/intel/zephyr/tree/master/drivers/sensor/mpu6050
 

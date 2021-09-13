@@ -1,0 +1,70 @@
+{
+  "build": {
+    "arduino":{
+      "ldscript": "nrf52832_s132_v6.ld"
+    },
+    "core": "nRF5",
+    "cpu": "cortex-m4",
+    "extra_flags": "-DARDUINO_NRF52_DK",
+    "f_cpu": "64000000L",
+    "hwids": [
+      [
+        "0x10C4",
+        "0xEA60"
+      ]
+    ],
+    "usb_product": "BT832A_ADS131M08",
+    "mcu": "nrf52832",
+    "variant": "bt832a_ads131m08",
+    "bsp": {
+      "name": "JoshB_JacobT_BojanJ"
+    },
+    "softdevice": {
+      "sd_flags": "-DS132",
+      "sd_name": "s132",
+      "sd_version": "6.1.1",
+      "sd_fwid": "0x00B7"
+    },
+    "zephyr": {
+       "variant": "nrf52dk_nrf52832"
+    }
+  },
+  "connectivity": [
+    "bluetooth"
+  ],
+  "debug": {
+    "default_tools": [
+      "jlink"
+    ],
+    "jlink_device": "nRF52832_xxAA",
+    "onboard_tools": [
+      "cmsis-dap",
+      "jlink"
+    ],
+    "svd_path": "nrf52.svd"
+  },
+  "frameworks": [
+    "arduino",
+    "mbed",
+    "zephyr"
+  ],
+  "name": "BT832A_ADS131M08",
+  "upload": {
+    "maximum_ram_size": 24576,
+    "maximum_size": 196608,
+    "require_upload_port": true,
+    "speed": 115200,
+    "protocol": "jlink",
+    "protocols": [
+      "jlink",
+      "nrfjprog",
+      "nrfutil",
+      "stlink",
+      "cmsis-dap",
+      "blackmagic",
+      "mbed"
+    ]
+  },
+  "url": "https://brainsatplay.com",
+  "vendor": "JoshB_JacobT_BojanJ"
+}
