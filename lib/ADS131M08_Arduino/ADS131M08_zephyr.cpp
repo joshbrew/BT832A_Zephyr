@@ -13,24 +13,26 @@
 
 ADS131M08::ADS131M08(int cs, int xtal, int drdy, int clk) {
 
-    CS = cs; XTAL = xtal; DRDY = drdy; //You don't have to use DRDY, can also read off the ADS131_STATUS register.
-    SpiClk = clk;
+    // CS = cs; XTAL = xtal; DRDY = drdy; //You don't have to use DRDY, can also read off the ADS131_STATUS register.
+    // SpiClk = clk;
 }
 
-void ADS131M08::init(int clkin) {
+void ADS131M08::init(const struct device *dev) {
 
     Serial.println("Setting pin configuration");
+
+    device = dev; //set device config
         
-    pinMode(CS, OUTPUT); digitalWrite(CS, HIGH);
-    pinMode(DRDY, INPUT_PULLUP);
+    // pinMode(CS, OUTPUT); digitalWrite(CS, HIGH);
+    // pinMode(DRDY, INPUT_PULLUP);
     
-    spi->begin();
+    // spi->begin();
 
-    Serial.println("Setting oscillator");
+    // Serial.println("Setting oscillator");
 
-    ledcSetup(2, clkin, 2);
-    ledcAttachPin(XTAL, 2); //Simulate 8.192Mhz crystal with PWM. This needs to be started as soon as possible after powering on
-    ledcWrite(2,2);
+    // ledcSetup(2, clkin, 2);
+    // ledcAttachPin(XTAL, 2); //Simulate 8.192Mhz crystal with PWM. This needs to be started as soon as possible after powering on
+    // ledcWrite(2,2);
 
     Serial.println("SPI Ready...");
 
@@ -103,19 +105,19 @@ bool ADS131M08::globalChop(bool enabled, uint8_t log2delay) {
     return writeReg(ADS131_CFG, newRegData);
 }
 
-uint32_t ADS131M08::wreg(uint8_t reg, uint16_t data) {
+uint32_t ADS131M08::writeReg(uint8_t reg, uint16_t data) {
     uint8_t cmd = 0x06;
     uint16_t cmdWord = (cmd << 12) + (reg << 7);
 
     //write CS LOW
     //begin transaction
 
-    tword(cmdWord);
-    tword(data);
+    spiTransferWord(cmdWord);
+    spiTransferWord(data);
 
     //send 4 empty words
     for(uint8_t i=0; i<4; i++) {
-        tword();
+        spiTransferWord();
     }
 
     //end transaction
@@ -123,7 +125,7 @@ uint32_t ADS131M08::wreg(uint8_t reg, uint16_t data) {
 
     //get response
     uint32_t responseArr[10];
-    frame(&responseArr[0]);
+    spiCommFrame(&responseArr[0]);
 
     if ( ( (0x04<<12) + (reg<<7) ) == responseArr[0]) {
         return true;
@@ -132,23 +134,23 @@ uint32_t ADS131M08::wreg(uint8_t reg, uint16_t data) {
     }
 }
 
-uint32_t ADS131M08::rreg(uint8_t reg) {
+uint32_t ADS131M08::readReg(uint8_t reg) {
     uint8_t cmd = 0x0A;
     uint16_t cmdWord = (cmd << 12) + (reg << 7);
 
     uint32_t responseArr[10];
 
     //send command
-    frame(&responseArr[0], cmdWord);
+    spiCommFrame(&responseArr[0], cmdWord);
 
     //read response
-    frame(&responseArr[0]);
+    spiCommFrame(&responseArr[0]);
 
     return responseArr[0] >> 16;
 }
 
 
-uint32_t ADS131M08::tword(uint16_t bytes) {
+uint32_t ADS131M08::spiTransferWord(uint16_t bytes) {
     const struct spi_buf buf[2] = { 
         {
             .buf = bytes,
@@ -174,21 +176,21 @@ uint32_t ADS131M08::tword(uint16_t bytes) {
     
 }
 
-uint16_t ADS131M08::frame(uint32_t *outPtr, uint16_t cmd) {
+uint16_t ADS131M08::spiCommFrame(uint32_t *outPtr, uint16_t cmd) {
     //write CS LOW
     //begin transaction
 
-    *outPtr = tword(cmd);
+    *outPtr = spiTransferWord(cmd);
 
     // For the next 8 words, just read the data
     for(uint8_t i=1; i<9; i++) {    
         outPtr++;
-        *outPtr = tword() >> 8;
+        *outPtr = spiTransferWord() >> 8;
     }   
 
     //save CRC bits
     outPtr++;
-    *outPtr = tword();
+    *outPtr = spiTransferWord();
 
     //end transaction
     //write CS high
@@ -196,112 +198,112 @@ uint16_t ADS131M08::frame(uint32_t *outPtr, uint16_t cmd) {
 }
 
 
-bool ADS131M08::writeReg(uint8_t reg, uint16_t data) {
-    /* Writes the content of data to the register reg
-        Returns true if successful
-    */
+// bool ADS131M08::writeReg(uint8_t reg, uint16_t data) {
+//     /* Writes the content of data to the register reg
+//         Returns true if successful
+//     */
     
-    uint8_t commandPref = 0x06;
+//     uint8_t commandPref = 0x06;
 
-    // Make command word using syntax found in data sheet
-    uint16_t commandWord = (commandPref<<12) + (reg<<7);
+//     // Make command word using syntax found in data sheet
+//     uint16_t commandWord = (commandPref<<12) + (reg<<7);
 
-    digitalWrite(CS, LOW);
-    spi->beginTransaction(SPISettings(SpiClk, MSBFIRST, SPI_MODE1));
+//     digitalWrite(CS, LOW);
+//     spi->beginTransaction(SPISettings(SpiClk, MSBFIRST, SPI_MODE1));
 
-    spiTransferWord(commandWord);
+//     spiTransferWord(commandWord);
     
-    spiTransferWord(data);
+//     spiTransferWord(data);
 
-    // Send 4 empty words
+//     // Send 4 empty words
  
-    for (uint8_t i=0; i<4; i++) {
-        spiTransferWord();
-    }
+//     for (uint8_t i=0; i<4; i++) {
+//         spiTransferWord();
+//     }
 
-    spi->endTransaction();
-    digitalWrite(CS, HIGH);
+//     spi->endTransaction();
+//     digitalWrite(CS, HIGH);
 
-    // Get response
-    uint32_t responseArr[10];
-    spiCommFrame(&responseArr[0]);
+//     // Get response
+//     uint32_t responseArr[10];
+//     spiCommFrame(&responseArr[0]);
 
-    if ( ( (0x04<<12) + (reg<<7) ) == responseArr[0]) {
-        return true;
-    } else {
-        return false;
-    }
-}
+//     if ( ( (0x04<<12) + (reg<<7) ) == responseArr[0]) {
+//         return true;
+//     } else {
+//         return false;
+//     }
+// }
 
-uint16_t ADS131M08::readReg(uint8_t reg) {
-    /* Reads the content of single register found at address reg
-        Returns register value
-    */
+// uint16_t ADS131M08::readReg(uint8_t reg) {
+//     /* Reads the content of single register found at address reg
+//         Returns register value
+//     */
     
-    uint8_t commandPref = 0x0A;
+//     uint8_t commandPref = 0x0A;
 
-    // Make command word using syntax found in data sheet
-    uint16_t commandWord = (commandPref << 12) + (reg << 7);
+//     // Make command word using syntax found in data sheet
+//     uint16_t commandWord = (commandPref << 12) + (reg << 7);
 
-    uint32_t responseArr[10];
-    // Use first frame to send command
-    spiCommFrame(&responseArr[0], commandWord);
+//     uint32_t responseArr[10];
+//     // Use first frame to send command
+//     spiCommFrame(&responseArr[0], commandWord);
 
-    // Read response
-    spiCommFrame(&responseArr[0]);
+//     // Read response
+//     spiCommFrame(&responseArr[0]);
 
-    return responseArr[0] >> 16;
-}
+//     return responseArr[0] >> 16;
+// }
 
-uint32_t ADS131M08::spiTransferWord(uint16_t inputData) {
-    /* Transfer a 24 bit word
-        Data returned is MSB aligned
-    */ 
+// uint32_t ADS131M08::spiTransferWord(uint16_t inputData) {
+//     /* Transfer a 24 bit word
+//         Data returned is MSB aligned
+//     */ 
 
-    uint32_t data = spi->transfer(inputData >> 8);
-    data <<= 8;
-    data |= spi->transfer((inputData<<8) >> 8);
-    data <<= 8;
-    data |= spi->transfer(0x00);
+//     uint32_t data = spi->transfer(inputData >> 8);
+//     data <<= 8;
+//     data |= spi->transfer((inputData<<8) >> 8);
+//     data <<= 8;
+//     data |= spi->transfer(0x00);
 
-    return data << 8;
-}
+//     return data << 8;
+// }
 
-void ADS131M08::spiCommFrame(uint32_t * outPtr, uint16_t command) {
-    // Saves all the data of a communication frame to an array with pointer outPtr
+// void ADS131M08::spiCommFrame(uint32_t * outPtr, uint16_t command) {
+//     // Saves all the data of a communication frame to an array with pointer outPtr
 
 
-    /*
-    spi_write(device *dev, spi_config *config, spi_bf_set *tx_bufs)
-    spi_read(device *dev, spi_config *config, spi_buf_set *rx_bufs)
+//     /*
+//     spi_write(device *dev, spi_config *config, spi_bf_set *tx_bufs)
+//     spi_read(device *dev, spi_config *config, spi_buf_set *rx_bufs)
     
-    there are _async functions with struct k_poll_signal *async as the end argument
+//     there are _async functions with struct k_poll_signal *async as the end argument
     
-    spi_release(device *dev, spi_config *config)
+//     spi_release(device *dev, spi_config *config)
 
-    */
+//     */
 
-    digitalWrite(CS, LOW);
+//     digitalWrite(CS, LOW);
 
-    spi->beginTransaction(SPISettings(SpiClk, MSBFIRST, SPI_MODE1));
+//     spi->beginTransaction(SPISettings(SpiClk, MSBFIRST, SPI_MODE1));
 
-    // Send the command in the first word
-    *outPtr = spiTransferWord(command);
+//     // Send the command in the first word
+//     *outPtr = spiTransferWord(command);
 
-    // For the next 8 words, just read the data
-    for (uint8_t i=1; i < 9; i++) {
-        outPtr++;
-        *outPtr = spiTransferWord() >> 8;
-    }
+//     // For the next 8 words, just read the data
+//     for (uint8_t i=1; i < 9; i++) {
+//         outPtr++;
+//         *outPtr = spiTransferWord() >> 8;
+//     }
 
-    // Save CRC bits
-    outPtr++;
-    *outPtr = spiTransferWord();
+//     // Save CRC bits
+//     outPtr++;
+//     *outPtr = spiTransferWord();
 
-    spi->endTransaction();
+//     spi->endTransaction();
 
-    digitalWrite(CS, HIGH);
-}
+//     digitalWrite(CS, HIGH);
+// }
 
 int32_t ADS131M08::twoCompDeco(uint32_t data) {
     // Take the two's complement of the data

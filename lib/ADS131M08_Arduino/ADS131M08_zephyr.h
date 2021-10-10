@@ -106,12 +106,6 @@ class ADS131M08 {
     struct device *dev;
     struct spi_dt_spec spi;
     struct gpio_dt_spec interrupt;
-    uint32_t wreg(uint8_t reg, uint16_t data);
-    uint32_t rreg(uint8_t reg);
-    uint32_t tword(uint16_t bytes);
-    uint32_t spi_bus_access(const struct device *dev, uint8_t reg, void *data, size_t length);
-
-
 };
 
 #endif
