@@ -41,7 +41,7 @@ void ADS131M08::init(uint8_t cs_pin, uint8_t drdy_pin, uint8_t sync_rst_pin, uin
     } 
     
     gpio_pin_set(gpioDevice, sync_rst_pin, 0);
-    k_msleep(10); // give some time to ADS131 to settle after power on
+    k_sleep(K_MSEC(20)); // give some time to ADS131 to settle after power on
     gpio_pin_set(gpioDevice, sync_rst_pin, 1);
 
     // Try to bind chip select device
@@ -54,11 +54,11 @@ void ADS131M08::init(uint8_t cs_pin, uint8_t drdy_pin, uint8_t sync_rst_pin, uin
     if (csConfig.gpio_dev)
     {
         spiConfig.frequency = spi_frequency;
-        spiConfig.operation = SPI_WORD_SET(8); //< Default Word Size of ADS131M08 is 24
+        spiConfig.operation = SPI_MODE_CPHA | SPI_WORD_SET(8); //< Default Word Size of ADS131M08 is 24
         spiConfig.slave = 0;
         spiConfig.cs = &csConfig;
 
-        spiDevice = device_get_binding("SPI_1");
+        spiDevice = device_get_binding("SPI_0");
     }
 
     if (spiDevice == nullptr)
@@ -84,31 +84,26 @@ uint16_t ADS131M08::readReg(uint8_t reg) {
     // Make command word using syntax found in data sheet
     uint16_t commandWord = (commandPref << 12) + (reg << 7);
 
-/* Send Command Frame */
-    spiCommandFrame(30, commandWord);
+    uint8_t cmdFrame[nWordsInFrame*nBytesInWord] = {0};
+    cmdFrame[0] = commandWord >> 8;
+    cmdFrame[1] = (uint8_t)(commandWord & 0xFF);
 
+/* Send Command Frame */
+    spiCommandFrame(nWordsInFrame*nBytesInWord, cmdFrame);
+    k_msleep(1);
 /* Read Response */
-    return spiResponseFrame(30);
-    
+    return spiResponseFrame(3);    
 }
 
-void ADS131M08::spiCommandFrame(uint8_t frame_size, uint16_t command) {
-    // Saves all the data of a communication frame to an array with pointer outPtr
-    uint8_t cmd_buffer[2] = {0};
-    cmd_buffer[0] = (command >> 8);
-    cmd_buffer[1] = (uint8_t)(command & 0xFF);
+void ADS131M08::spiCommandFrame(uint8_t frame_size, uint8_t *cmdFrame) {
 
     if (spiDevice != nullptr)
     {
         int status;
         const struct spi_buf txBuffers[] = {
             {
-                .buf = cmd_buffer,
-                .len = 2,
-            },
-            {
-                .buf = NULL,
-                .len = (frame_size - 2),
+                .buf = cmdFrame,
+                .len = frame_size,
             },
         };
         const struct spi_buf rxBuffers[] = {
@@ -171,6 +166,80 @@ uint16_t ADS131M08::spiResponseFrame(uint8_t frame_size) {
     return (resp_buffer[0] << 8) | resp_buffer[1];
 }
 
+bool ADS131M08::writeReg(uint8_t reg, uint16_t data) {
+    /* Writes the content of data to the register reg
+        Returns true if successful
+    */
+    uint16_t writeResponse = 0;
+    uint8_t commandPref = 0x06;
+
+    // Make command word using syntax found in data sheet
+    uint16_t commandWord = (commandPref<<12) + (reg<<7);
+
+    uint8_t cmdFrame[9] = {0}; //< We write only WREG command and one Register data in this Frame
+    cmdFrame[0] = commandWord >> 8;
+    cmdFrame[1] = (uint8_t)(commandWord & 0xFF);
+    cmdFrame[3] = data >> 8;
+    cmdFrame[4] = (uint8_t)(data & 0xFF);
+
+/* Send Command Frame */
+    spiCommandFrame(9, cmdFrame);
+    k_msleep(10);
+/* Read Response */
+    writeResponse = spiResponseFrame(3);
+    //LOG_INF("WriteReg response: 0x%X", writeResponse);
+
+    if ( ( (0x04<<12) + (reg<<7) ) == writeResponse) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool ADS131M08::setGain(uint8_t gain) { // apply gain to all channels (1 to 128, base 2 (1,2,4,8,16,32,64,128))
+    uint16_t writeGain = 0;
+    
+    switch(gain){
+        case 1:
+            writeGain = 0x0000;
+            break;
+        case 2:
+            writeGain = 0x1111;
+            break;        
+        case 4:
+            writeGain = 0x2222;
+            break; 
+        case 8:
+            writeGain = 0x3333;
+            break;                                
+        case 16:
+            writeGain = 0x4444;
+            break;             
+        case 32:
+            writeGain = 0x5555;
+            break;             
+        case 64:
+            writeGain = 0x6666;
+            break;             
+        case 128:
+            writeGain = 0x7777;
+            break;             
+        default:
+            writeGain = 0x0000;
+            break;
+    }
+
+    if(writeReg(ADS131_GAIN1, writeGain)){
+        k_msleep(10);
+        if(writeReg(ADS131_GAIN2, writeGain)){
+            return true;
+        }else{
+            return false;
+        }                
+    }else {
+        return false;
+    }
+}
 
 #if 0
 #include "ADS131M08.hpp"

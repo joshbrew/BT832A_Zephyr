@@ -72,12 +72,15 @@ class ADS131M08 {
     int CS, XTAL, DRDY;
     int SpiClk;
     bool firstRead = true;
-    int nFrameWords = 10;
+    uint8_t nWordsInFrame = 10; //< Normal frame contains 10 Words 
+    uint8_t nBytesInWord = 3;   //< 24-bit Word by default
     // Dummy word frame to write ADC during ADC data reads
     
     ADS131M08();
     void init(uint8_t cs_pin, uint8_t drdy_pin, uint8_t sync_rst_pin, uint32_t spi_frequency);
     uint16_t readReg(uint8_t reg);
+    bool writeReg(uint8_t reg, uint16_t data);
+    bool setGain(uint8_t gain);
 
 #if 0    
     void readChannels(int8_t * channelArrPtr, int8_t channelArrLen, int32_t * outputArrPtr);
@@ -94,7 +97,7 @@ class ADS131M08 {
 
 private:
     //uint32_t spiTransferWord(uint16_t inputData = 0x0000);
-    void spiCommandFrame(uint8_t frame_size, uint16_t command);
+    void spiCommandFrame(uint8_t frame_size, uint8_t *cmdFrame);
     uint16_t spiResponseFrame(uint8_t frame_size);
     
     //void ads131m08_drdy_cb(const struct device *port, struct gpio_callback *cb, gpio_port_pins_t pins);           ///< Callback function to call when data ready 
