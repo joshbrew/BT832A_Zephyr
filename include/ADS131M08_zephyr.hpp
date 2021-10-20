@@ -81,6 +81,7 @@ class ADS131M08 {
     uint16_t readReg(uint8_t reg);
     bool writeReg(uint8_t reg, uint16_t data);
     bool setGain(uint8_t gain);
+    void readAllChannels(uint8_t * data_buffer);
 
 #if 0    
     void readChannels(int8_t * channelArrPtr, int8_t channelArrLen, int32_t * outputArrPtr);
@@ -99,6 +100,7 @@ private:
     //uint32_t spiTransferWord(uint16_t inputData = 0x0000);
     void spiCommandFrame(uint8_t frame_size, uint8_t *cmdFrame);
     uint16_t spiResponseFrame(uint8_t frame_size);
+    void spiDataFrame(uint8_t frame_size, uint8_t *data_buffer);
     
     //void ads131m08_drdy_cb(const struct device *port, struct gpio_callback *cb, gpio_port_pins_t pins);           ///< Callback function to call when data ready 
     std::atomic<int> deviceStatus = 0;  ///< SPI Device status

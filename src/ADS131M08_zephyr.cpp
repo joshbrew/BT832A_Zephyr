@@ -166,6 +166,40 @@ uint16_t ADS131M08::spiResponseFrame(uint8_t frame_size) {
     return (resp_buffer[0] << 8) | resp_buffer[1];
 }
 
+void ADS131M08::spiDataFrame(uint8_t frame_size, uint8_t *data_buffer) {
+
+    uint8_t dummy_frame[frame_size] = {0};
+
+    if (spiDevice != nullptr)
+    {
+        int status;
+        const struct spi_buf txBuffers[] = {
+            {
+                .buf = dummy_frame,
+                .len = frame_size,
+            },
+        };
+        const struct spi_buf rxBuffers[] = {
+            {
+                .buf = data_buffer,
+                .len = frame_size,
+            },
+        };
+        const struct spi_buf_set txSet = {
+            .buffers = txBuffers,
+            .count = sizeof(txBuffers) / sizeof(spi_buf),
+        };
+        const struct spi_buf_set rxSet = {
+            .buffers = rxBuffers,
+            .count = sizeof(rxBuffers) / sizeof(spi_buf),
+        };
+
+        status = spi_transceive(spiDevice, &spiConfig, &txSet, &rxSet);
+
+        deviceStatus.store(status, std::memory_order_relaxed);
+    }
+}
+
 bool ADS131M08::writeReg(uint8_t reg, uint16_t data) {
     /* Writes the content of data to the register reg
         Returns true if successful
@@ -239,6 +273,25 @@ bool ADS131M08::setGain(uint8_t gain) { // apply gain to all channels (1 to 128,
     }else {
         return false;
     }
+}
+
+void ADS131M08::readAllChannels(uint8_t * data_buffer) {
+    
+    spiDataFrame(nWordsInFrame*nBytesInWord, data_buffer);
+/*    
+    uint32_t rawDataArr[10];
+    int8_t channelArrPtr = 0;
+    int8_t channelArrLen = 8;
+
+    // Get data
+    spiCommFrame(&rawDataArr[0]);
+    // Save the decoded data for each of the channels
+    for (int8_t i = 0; i<8; i++) {
+        inputArr[i] = twoCompDeco(rawDataArr[channelArrPtr+1]);
+        channelArrPtr++;
+    }
+*/
+
 }
 
 #if 0

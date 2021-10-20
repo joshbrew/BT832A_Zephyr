@@ -8,7 +8,7 @@
 
 #include "ADS131M08_zephyr.hpp"
 
-#define DATA_READY_GPIO     ((uint8_t)24)
+#define DATA_READY_GPIO     ((uint8_t)4)
 #define DBG_LED             ((uint8_t)13)
 
 LOG_MODULE_REGISTER(main);
@@ -37,7 +37,7 @@ void main(void)
         LOG_INF("GPIOs Int'd!");        
     }
     
-    adc.init(5, 4, 7, 2000000); // cs_pin, drdy_pin, sync_rst_pin, 2MHz SPI bus
+    adc.init(5, 4, 7, 8000000); // cs_pin, drdy_pin, sync_rst_pin, 2MHz SPI bus
 
     if(adc.writeReg(ADS131_CLOCK,0xFF1A)){  //< Clock register (page 55 in datasheet)
         LOG_INF("ADS131_CLOCK register successfully configured");
@@ -78,11 +78,21 @@ void main(void)
     LOG_INF("1...");
     k_msleep(1000);
 
+    uint8_t adcRawData[adc.nWordsInFrame * adc.nBytesInWord] = {0};
+    uint8_t sampleNum = 0;
 
     while(1){
-        LOG_INF("Hello...");
-        //gpio_pin_toggle(gpio_0_dev, DBG_LED);
-        k_msleep(3000);
+        if(gpio_pin_get(gpio_0_dev, DATA_READY_GPIO)) {           
+            adc.readAllChannels(adcRawData);
+
+            sampleNum++;
+            //LOG_INF("Sample: %d", sampleNum);
+            if (sampleNum == 100){
+                LOG_INF("ADC[0]: %d", ((adcRawData[3] << 16) | (adcRawData[4] << 8) | adcRawData[5]));
+            }
+        }
+        else {
+        }        
     }
 }
 
@@ -94,7 +104,7 @@ static int gpio_init(void){
 		LOG_ERR("***ERROR: GPIO device binding!");
         return -1;
 	}    
-
+#if 0
     ret += gpio_pin_configure(gpio_0_dev, DATA_READY_GPIO, GPIO_INPUT | GPIO_PULL_UP);
     ret += gpio_pin_interrupt_configure(gpio_0_dev, DATA_READY_GPIO, GPIO_INT_EDGE_FALLING);
     gpio_init_callback(&callback, ads131m08_drdy_cb, BIT(DATA_READY_GPIO));    
@@ -102,7 +112,10 @@ static int gpio_init(void){
     if (ret != 0){
         LOG_ERR("***ERROR: GPIO initialization\n");
     }
+#endif
 
+    ret = gpio_pin_configure(gpio_0_dev, DATA_READY_GPIO, GPIO_INPUT | GPIO_ACTIVE_LOW);
+    
     ret = gpio_pin_configure(gpio_0_dev, DBG_LED, GPIO_OUTPUT_ACTIVE); // Set SYNC/RESET pin to HIGH
    
     gpio_pin_set(gpio_0_dev, DBG_LED, 0);
