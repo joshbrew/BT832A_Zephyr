@@ -814,7 +814,7 @@ boyerMoore(patternBuffer) {
         //*********************************************
         //************** Customize me *****************
         //*********************************************
-  
+        let start = Date.now();
         
         const ads = new ads131m08((newLinesInt) => {
             let ch0 = ads.getLatestData('A0',newLinesInt);
@@ -831,7 +831,7 @@ boyerMoore(patternBuffer) {
             let outputdiv = document.getElementById('output');
             if(outputdiv) outputdiv.innerHTML = `${output}`;
 
-            outputTimestamps.push(Date.now());
+            outputTimestamps.push((Date.now() - start)*0.001);
             plotY1.push(ch0);
             plotY2.push(ch1);
         });
