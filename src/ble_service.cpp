@@ -23,6 +23,21 @@ constexpr static uint16_t connectionTimeout = 400;   ///< Connection timeout in 
 bt_conn *activeConnection = nullptr;       ///< Active connection
 
 /**
+ * @brief Callback called when MTU paramter is updated with bt_gatt_exchange_mtu() function
+ */
+void exchange_func(struct bt_conn *conn, uint8_t err, struct bt_gatt_exchange_params *params)
+ {
+    struct bt_conn_info info = {0};
+
+    printk("MTU exchange %s\n", err == 0 ? "successful" : "failed");
+    err = bt_conn_get_info(conn, &info);
+
+    if (info.role == BT_CONN_ROLE_MASTER) {
+
+    }
+}
+
+/**
  * @brief Callback called when new client is connected
  * 
  * @param connected connected bluetooth connection
@@ -41,6 +56,13 @@ void OnClientConnected(bt_conn *connected, uint8_t err)
         if ((!activeConnection) && err == 0)
         {
             activeConnection = bt_conn_ref(connected);
+            
+            /* Set MTU parameter. NOTE: It's allowed to do it only once during a connection */
+            static struct bt_gatt_exchange_params exchange_params;
+            exchange_params.func = exchange_func;
+
+            int error = bt_gatt_exchange_mtu(activeConnection, &exchange_params);
+
 #if 0
             bt_le_conn_param param = BT_LE_CONN_PARAM_INIT(
                 connectionIntervalMin,

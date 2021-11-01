@@ -35,7 +35,8 @@ struct gpio_callback callback;
 struct k_work interrupt_work_item;    ///< interrupt work item
 static uint32_t sampleNum = 0;
 
-static uint8_t ble_tx_buff[247] = {0};
+//static uint8_t ble_tx_buff[247] = {0};
+static uint8_t adcRawData[25] = {0};
 
 ADS131M08 adc;
 
@@ -99,7 +100,7 @@ void main(void)
 
     activate_irq_on_data_ready();
 
-    uint8_t adcRawData[adc.nWordsInFrame * adc.nBytesInWord] = {0};       
+    //uint8_t adcRawData[adc.nWordsInFrame * adc.nBytesInWord] = {0};       
 
     while(1){
 
@@ -181,14 +182,18 @@ static void ads131m08_drdy_cb(const struct device *port, struct gpio_callback *c
  */
 static void interrupt_workQueue_handler(struct k_work* wrk)
 {	
-    uint8_t adcRawData[adc.nWordsInFrame * adc.nBytesInWord] = {0};
-    adc.readAllChannels(adcRawData);
+    uint8_t adcBuffer[(adc.nWordsInFrame * adc.nBytesInWord)] = {0};
+    adc.readAllChannels(adcBuffer);
+    
+    adcRawData[24] = sampleNum;
+    memcpy(adcRawData, (adcBuffer + 3), 24);
 
     sampleNum++;
     static uint8_t rand = 0;    
-    if (sampleNum % 100 == 0){
+    if (sampleNum % 20 == 0){
         LOG_INF("Sample: %d", sampleNum);
-        Bluetooth::SensorNotify(&rand, sizeof(uint8_t));
+        //Bluetooth::SensorNotify(&rand, sizeof(uint8_t));
+        Bluetooth::SensorNotify(adcRawData, sizeof(adcRawData));
         rand++;
     }  
 
