@@ -36,7 +36,7 @@ struct k_work interrupt_work_item;    ///< interrupt work item
 static uint32_t sampleNum = 0;
 
 //static uint8_t ble_tx_buff[247] = {0};
-static uint8_t adcRawData[25] = {0};
+static uint8_t adcRawData[27] = {0};
 
 ADS131M08 adc;
 
@@ -186,6 +186,8 @@ static void interrupt_workQueue_handler(struct k_work* wrk)
     adc.readAllChannels(adcBuffer);
     
     adcRawData[24] = sampleNum;
+    adcRawData[25] = 0x0D;
+    adcRawData[26] = 0x0A;
     memcpy(adcRawData, (adcBuffer + 3), 24);
 
     sampleNum++;
