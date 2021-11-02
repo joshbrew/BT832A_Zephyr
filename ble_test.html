@@ -84,7 +84,9 @@
                 <button id="${buttonId}">BLE Connect</button>
                 <input type='text' id=${inputId}></input>
                 <button id="${inputId}button">Send</button><br>
-                OUTPUT: <span id='output'></span>
+                OUTPUT: 32X Gain, 24 bits<br>
+                <table id='output'></table><br>
+                ELAPSED SECONDS: <span id='elapsed'></span>
                 `;
             if(parentId) document.getElementById(parentId).insertAdjacentHTML('afterbegin',HTMLtoAppend);
             else document.body.insertAdjacentHTML('afterbegin',HTMLtoAppend);
@@ -387,7 +389,7 @@ class ads131m08 { //Contains structs and necessary functions/API calls to analyz
 
         this.buffer = [];
         this.byteLength = 27; //length of an array buffer
-        this.adcLength = 24;
+        this.adcLength = 25;
         this.stopByte = 0x0D; // Stop byte value
         this.startByte = 0x0A; // Start byte value
         this.searchString = new Uint8Array([this.stopByte,this.startByte]); //Byte search string
@@ -517,8 +519,9 @@ class ads131m08 { //Contains structs and necessary functions/API calls to analyz
 						}
 					}//Assume no dropped samples
 				
-					for(var i = 0; i < this.adcLength; i+=3) {
-						var channel = "A"+(i)/3;
+					for(var i = 2; i < this.adcLength; i+=3) {
+						var channel = "A"+(i-2)/3;
+                        //console.log(channel, line[i],line[i+1],line[i+2])
 						this.data[channel][this.data.count-1]=this.bytesToInt24(line[i],line[i+1],line[i+2]);
 						if(this.data.count >= this.maxBufferedSamples) { 
 							this.data[channel].splice(0,5120);
@@ -572,7 +575,7 @@ class ads131m08 { //Contains structs and necessary functions/API calls to analyz
     onReceive(value=[]){ //will be passing a uint8array
         this.buffer.push(...value);
         let newlines = this.decode(); //decode the buffer
-        console.log(newlines)
+        //console.log(newlines)
         if(newlines > 0) this.onDecodedCallback(newlines);
     }
 
@@ -806,10 +809,10 @@ boyerMoore(patternBuffer) {
 
         ble.initUI();
 
-        const outputTimestamps = [];
-        const outputArray = [];
-        const plotY1 = [];
-        const plotY2 = [];
+        let outputTimestamps = [];
+        let outputArray = [];
+        let plotY1 = [];
+        let plotY2 = [];
 
         //*********************************************
         //************** Customize me *****************
@@ -817,21 +820,28 @@ boyerMoore(patternBuffer) {
         let start = Date.now();
         
         const ads = new ads131m08((newLinesInt) => {
-            let ch0 = ads.getLatestData('A0',newLinesInt);
-            let ch1 = ads.getLatestData('A1',newLinesInt);
-            let ch2 = ads.getLatestData('A2',newLinesInt);
-            let ch3 = ads.getLatestData('A3',newLinesInt);
-            let ch4 = ads.getLatestData('A4',newLinesInt);
-            let ch5 = ads.getLatestData('A5',newLinesInt);
-            let ch6 = ads.getLatestData('A6',newLinesInt);
-            let ch7 = ads.getLatestData('A7',newLinesInt);
+            let ch0 = ads.getLatestData('A0',newLinesInt)*ads.uVperStep;
+            let ch1 = ads.getLatestData('A1',newLinesInt)*ads.uVperStep;
+            let ch2 = ads.getLatestData('A2',newLinesInt)*ads.uVperStep;
+            let ch3 = ads.getLatestData('A3',newLinesInt)*ads.uVperStep;
+            let ch4 = ads.getLatestData('A4',newLinesInt)*ads.uVperStep;
+            let ch5 = ads.getLatestData('A5',newLinesInt)*ads.uVperStep;
+            let ch6 = ads.getLatestData('A6',newLinesInt)*ads.uVperStep;
+            let ch7 = ads.getLatestData('A7',newLinesInt)*ads.uVperStep;
             let output = [ch0,ch1,ch2,ch3,ch4,ch5,ch6,ch7];
-            console.log("BLE MSG: ",...output);
+
+            let elapsed = (Date.now() - start)*0.001;
+            //console.log("BLE MSG: ",...output.map(o => o.toFixed(3)));
 
             let outputdiv = document.getElementById('output');
-            if(outputdiv) outputdiv.innerHTML = `${output}`;
+            outputdiv.innerHTML = ``;
+            if(outputdiv) output.forEach((o) => {
+                outputdiv.innerHTML+= `<tr><td>${o.toFixed(3)}</td><td>uV</td></tr>`;
+            });
+            let elapseddiv = document.getElementById('elapsed');
+            if(elapseddiv) elapseddiv.innerHTML = `${elapsed}`;
 
-            outputTimestamps.push((Date.now() - start)*0.001);
+            outputTimestamps.push(elapsed);
             plotY1.push(ch0);
             plotY2.push(ch1);
         });
@@ -840,7 +850,7 @@ boyerMoore(patternBuffer) {
         ble.onNotificationCallback = (e) => {
             let output = Array.from(new Uint8Array(e.target.value.buffer));
 
-            console.log(output);
+            //console.log(output);
             ads.onReceive([...output]);
         } 
         //*********************************************
@@ -853,8 +863,7 @@ boyerMoore(patternBuffer) {
         const data = [{
             x: outputTimestamps,
             y: plotY1,
-            mode: 'markers',
-            type: 'scatter',
+            mode: 'lines',
             marker: {
                 color: "rgba(255,100,255, 1)"
             },
@@ -863,8 +872,7 @@ boyerMoore(patternBuffer) {
             },{
             x: outputTimestamps,
             y: plotY2,
-            mode: 'markers',
-            type: 'scatter',
+            mode: 'lines',
             marker: {
                 color: "rgba(100,255,255, 1)"
             },
@@ -880,22 +888,23 @@ boyerMoore(patternBuffer) {
         Plotly.newPlot('pa',data,config);
         //Plotly.newPlot('pb',data,config);
 
-        let plotPointLimit = 300;
+        let plotPointLimit = 100;
         let fps = 10;
 
         let ms = 1000/fps;
 
         let animate = () => {
 
+
+            if(outputTimestamps.length > plotPointLimit || plotY1.length > plotPointLimit || plotY2.length > plotPointLimit) {
+                outputTimestamps.splice(0,outputTimestamps.length-plotPointLimit);
+                plotY1.splice(0,plotY1.length-plotPointLimit);
+                plotY2.splice(0,plotY2.length-plotPointLimit);   
+            }
+
             let newX = outputTimestamps;
             let newY1 = plotY1;
             let newY2 = plotY2;
-
-            if(outputTimestamps.length > plotPointLimit) {
-                newX = outputTimestamps.slice(outputTimestamps.length-plotPointLimit);
-                newY1 = plotY1.slice(plotY1.length-plotPointLimit);
-                newY2 = plotY2.slice(plotY2.length-plotPointLimit);
-            }
 
             let newData = {
                 data:[{
