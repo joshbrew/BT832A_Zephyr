@@ -33,10 +33,11 @@ static int activate_irq_on_data_ready(void);
 const struct device *gpio_0_dev;
 struct gpio_callback callback;
 struct k_work interrupt_work_item;    ///< interrupt work item
-static uint32_t sampleNum = 0;
+static uint8_t sampleNum = 0;
+static uint8_t i = 0;
 
-//static uint8_t ble_tx_buff[247] = {0};
-static uint8_t adcRawData[27] = {0};
+static uint8_t ble_tx_buff[247] = {0};
+//static uint8_t adcRawData[27] = {0};
 
 ADS131M08 adc;
 
@@ -46,6 +47,8 @@ void main(void)
     LOG_WRN("This is a warning message!");
     LOG_INF("This is a information message!");
     LOG_DBG("This is a debugging message!");
+    ble_tx_buff[225] = 0x0D;
+    ble_tx_buff[226] = 0x0A;
     int ret = 0;
     uint16_t reg_value = 0;
 
@@ -70,7 +73,7 @@ void main(void)
     } else {
         LOG_ERR("***ERROR: Setting ADC gain!");
     }
-
+    k_msleep(10);
     if(adc.writeReg(ADS131_THRSHLD_LSB,0b0000000000001010)){  //< Clock register (page 55 in datasheet)
         //LOG_INF("ADS131_THRSHLD_LSB register successfully configured");
         // adc.writeReg(ADS131_CH0_CFG,0b0000000000000000);
@@ -84,7 +87,7 @@ void main(void)
     } else {
         LOG_ERR("***ERROR: Writing ADS131_THRSHLD_LSB register.");
     }
-
+    k_msleep(10);
     reg_value = adc.readReg(ADS131_CLOCK);
     //LOG_INF("ADS131_CLOCK: 0x%X", reg_value);
     k_msleep(10); 
@@ -199,18 +202,14 @@ static void interrupt_workQueue_handler(struct k_work* wrk)
     uint8_t adcBuffer[(adc.nWordsInFrame * adc.nBytesInWord)] = {0};
     adc.readAllChannels(adcBuffer);
     
-    adcRawData[24] = sampleNum;
-    adcRawData[25] = 0x0D;
-    adcRawData[26] = 0x0A;
-    memcpy(adcRawData, (adcBuffer + 3), 24);
+    ble_tx_buff[25*i + 24] = sampleNum;
+    memcpy((ble_tx_buff + 25*i), (adcBuffer + 3), 24);
 
     sampleNum++;
-    static uint8_t rand = 0;    
-    if (sampleNum % 20 == 0){
-        LOG_INF("Sample: %d", sampleNum);
-        //Bluetooth::SensorNotify(&rand, sizeof(uint8_t));
-        Bluetooth::SensorNotify(adcRawData, sizeof(adcRawData));
-        rand++;
-    }  
+    i++;
+    if(i == 9){
+        i = 0;
+        Bluetooth::SensorNotify(ble_tx_buff, 227);
+    }
 
 }

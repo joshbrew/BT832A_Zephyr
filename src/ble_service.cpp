@@ -63,20 +63,17 @@ void OnClientConnected(bt_conn *connected, uint8_t err)
 
             int error = bt_gatt_exchange_mtu(activeConnection, &exchange_params);
 
-#if 0
-            bt_le_conn_param param = BT_LE_CONN_PARAM_INIT(
-                connectionIntervalMin,
-                connectionIntervalMax, 
-                connectionLatency, 
-                connectionTimeout);
-            int error = bt_conn_le_param_update(connected, &param);
+            bt_conn_le_phy_param phy_param = BT_CONN_LE_PHY_PARAM_INIT(
+            BT_GAP_LE_PHY_2M,
+            BT_GAP_LE_PHY_2M
+            );
+            error = bt_conn_le_phy_update(connected, &phy_param);
 
-            if (error)
-            {
-                LOG_ERR("Failed to update connection parameters (err = %d)\n", error);
-                return;
+            if (error){
+                LOG_ERR("Failed to update BLE PHY parameters (err = %d)\n", error);
+            } else {
+                LOG_INF("BLE PHY updated!");
             }
-#endif
         }
     }
 }
@@ -100,12 +97,84 @@ void OnClientDisconnected(struct bt_conn *disconn, uint8_t reason)
 }
 
 /**
+ * @brief This callback notifies the application that a remote device
+ *        is requesting to update the connection parameters.
+ * 
+ *  @param conn Connection object.
+ *  @param param Proposed connection parameters.
+ *  @return true to accept the parameters, or false to reject them.
+ */
+bool OnLeParamUpdateRequest(struct bt_conn *conn,
+			     struct bt_le_conn_param *param)
+{
+  
+    LOG_INF("LE Connection parameters requested!");
+    LOG_INF("Min Connection Interval: %d x 1.25ms", param->interval_min);
+    LOG_INF("Max Connection Interval: %d x 1.25ms", param->interval_max);
+}
+
+/** @brief The parameters for an LE connection have been updated.
+ *
+ *  This callback notifies the application that the connection
+ *  parameters for an LE connection have been updated.
+ *
+ *  @param conn Connection object.
+ *  @param interval Connection interval.
+ *  @param latency Connection latency.
+ *  @param timeout Connection supervision timeout.
+ */
+void OnLeParamUpdated(struct bt_conn *conn, uint16_t interval,
+				 uint16_t latency, uint16_t timeout)
+{
+    LOG_INF("LE connection parameters updated!");
+    LOG_INF("Connection interval: %d x 1.25ms", interval);
+    int error;
+
+    if(interval != 6){ /* If connection interval is greater than 6 x 1.25ms = 7.5ms */
+        bt_le_conn_param param = BT_LE_CONN_PARAM_INIT(
+            connectionIntervalMin,
+            connectionIntervalMax, 
+            connectionLatency, 
+            connectionTimeout);
+        error = bt_conn_le_param_update(conn, &param);
+        
+        if (error){
+            LOG_ERR("Failed to update connection parameters (err = %d)\n", error);
+            //return;
+        } else {
+            LOG_INF("Connection parameters successfully updated!");
+        }
+    }
+
+}
+
+/** @brief The PHY of the connection has changed.
+ *
+ *  This callback notifies the application that the PHY of the
+ *  connection has changed.
+ *
+ *  @param conn Connection object.
+ *  @param info Connection LE PHY information.
+ */
+void OnPhyUpdated(struct bt_conn *conn,
+			     struct bt_conn_le_phy_info *param)
+{
+  
+    LOG_INF("LE PHY Updated!");
+    LOG_INF("TX PHY: %d", param->tx_phy);
+    LOG_INF("RX PHY: %d", param->rx_phy);
+}
+
+/**
  * @brief connection status callback
  */
 bt_conn_cb connectionCallbacks =
 {
     .connected = OnClientConnected,
     .disconnected = OnClientDisconnected,
+    .le_param_req = OnLeParamUpdateRequest,
+    .le_param_updated = OnLeParamUpdated,
+    .le_phy_updated = OnPhyUpdated,
 };
 
 } // namespace
@@ -123,7 +192,7 @@ int SetupBLE()
     //worker.Initialize();
 
     bt_conn_cb_register(&connectionCallbacks);
-
+     
     int err = bt_enable(&Gatt::OnBluetoothStarted);
     if (err)
     {
