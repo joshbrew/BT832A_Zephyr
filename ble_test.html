@@ -84,7 +84,7 @@
                 <button id="${buttonId}">BLE Connect</button>
                 <input type='text' id=${inputId}></input>
                 <button id="${inputId}button">Send</button><br>
-                OUTPUT: 32X Gain, 24 bits<br>
+                OUTPUT: <br>
                 <table id='output'></table><br>
                 ELAPSED SECONDS: <span id='elapsed'></span>
                 `;
@@ -370,6 +370,7 @@
 class ads131m08 { //Contains structs and necessary functions/API calls to analyze serial data for the FreeEEG32
 
     constructor(
+        mode='ads131',
         onDecodedCallback = this.onDecodedCallback,
         onConnectedCallback = this.onConnectedCallback,
         onDisconnectedCallback = this.onDisconnectedCallback,
@@ -388,9 +389,15 @@ class ads131m08 { //Contains structs and necessary functions/API calls to analyz
         this.connected = false;
         this.subscribed = false;
 
+        this.mode = mode //ads131, ppg
         this.buffer = [];
         this.byteLength = 227; //length of an array buffer
         this.adcLength = 225;
+        if(this.mode === 'pulseox') {
+            this.byteLength = 243; //length of an array buffer
+            this.adcLength = 241;
+            this.sps = 30;
+        }
         this.stopByte = 0x0D; // Stop byte value
         this.startByte = 0x0A; // Start byte value
         this.searchString = new Uint8Array([this.stopByte,this.startByte]); //Byte search string
@@ -398,6 +405,7 @@ class ads131m08 { //Contains structs and necessary functions/API calls to analyz
         this.readRate = 1; //Throttle EEG read speed. (1.953ms/sample min @103 bytes/line)
         this.readBufferSize = 2000; //Serial read buffer size, increase for slower read speeds (~1030bytes every 20ms) to keep up with the stream (or it will crash)
         this.decoder = new TextDecoder();
+
 
         this.sps = 500; // Sample rate
         this.nChannels = 8;
@@ -418,6 +426,9 @@ class ads131m08 { //Contains structs and necessary functions/API calls to analyz
             startms: undefined,
             ms: [],
             'A0': [],'A1': [],'A2': [],'A3': [],'A4': [],'A5': [],'A6': [],'A7': [], //ADC 0
+            'RED':[],'IR':[],'AMB':[],
+            'ECG':[],'BIOZ':[],
+            'AX':[],'AY':[],'AZ':[],'GX':[],'GY':[],'GZ':[]
         };
 
         this.resetDataBuffers();
@@ -481,6 +492,14 @@ class ads131m08 { //Contains structs and necessary functions/API calls to analyz
         return [y & 0xFF , (y >> 8) & 0xFF , (y >> 16) & 0xFF];
     }
 
+    bytesToInt32(x0,x1,x2,x3){ //Turns a 3 byte sequence into a 24 bit int
+        return x0 * 16777216 + x1 * 65536 + x2 * 256 + x3;
+    }
+
+    int32ToBytes(y){ //Turns a 24 bit int into a 3 byte sequence
+        return [y & 0xFF , (y >> 8) & 0xFF , (y >> 16) & 0xFF, (y >> 24) & 0xFF];
+    }
+
     decode(buffer=this.buffer) { //returns true if successful, returns false if not
 
         
@@ -500,75 +519,150 @@ class ads131m08 { //Contains structs and necessary functions/API calls to analyz
 					console.log(indices[k] - indices[k-1]);
 				} //This is not a valid sequence going by size, drop sequence and return
 				else {
-					let line = buffer.slice(indices[k-1],indices[k]+1); //Splice out this line to be decoded
+					let line = buffer.slice(indices[k-1],indices[k]); //Splice out this line to be decoded
 					//console.log(line)
 					// line[0] = stop byte, line[1] = start byte, line[2] = counter, line[3:99] = ADC data 32x3 bytes, line[100-104] = Accelerometer data 3x2 bytes
-
+                    
                     //0x0D,0x0A,0:1,0:2,0:3,1:1,1:2,1:3,...8:3,CTR,0:1,0:2,0:3,...0x0D,0x0A for 9 samples in a batch then 0X0D,0X0A again
 
-					let channelnum = 0;
-					for(let i = 2; i < this.adcLength; i+=3) {
-                        let offset = (i-2) % 24 - Math.floor((i-2)/25);
-                        if(i > 25) {
-                            if(offset === 0) { //end of sequence, move to next string of bytes
-                                i+=1; //skip counter
-                                channelnum = 0; //reset channel number to 0
-                                //console.log(i);
-                            }
+     
+                    if(this.mode === 'ads131') {
+                        if(this.data.count < this.maxBufferedSamples){
+                            this.data.count++;
                         }
-                        if(offset === 0 || i === 2) {
-                            //line found, decode.
-                            if(this.data.count < this.maxBufferedSamples){
-                                this.data.count++;
+                        if(this.data.count-1 === 0) {this.data.ms[this.data.count-1]= Date.now(); this.data.startms = this.data.ms[0];}
+                        else {
+                            this.data.ms[this.data.count-1]=this.data.ms[this.data.count-2]+this.updateMs;
+                            
+                            if(this.data.count >= this.maxBufferedSamples) {
+                                this.data.ms.splice(0,5120);
+                                this.data.ms.push(new Array(5120).fill(0));
                             }
-
-                            if(this.data.count-1 === 0) {this.data.ms[this.data.count-1]= Date.now(); this.data.startms = this.data.ms[0];}
-                            else {
-                                this.data.ms[this.data.count-1]=this.data.ms[this.data.count-2]+this.updateMs;
-                                
-                                if(this.data.count >= this.maxBufferedSamples) {
-                                    this.data.ms.splice(0,5120);
-                                    this.data.ms.push(new Array(5120).fill(0));
+                        } //Assume no dropped samples
+                        if(this.data.count >= this.maxBufferedSamples) { 
+                            this.data.count -= 5120;
+                        }
+                        let channelnum = 0;
+                        for(let i = 2; i < this.adcLength; i+=3) {
+                            let offset = (i-2) % 24 - Math.floor((i-2)/25);
+                            if(i > 24) {
+                                if(offset === 0) { //end of sequence, move to next string of bytes
+                                    i+=1; //skip counter
+                                    channelnum = 0; //reset channel number to 0
+                                    console.log(i,line[i-2],line[i-1],line[i]);
                                 }
-                            } //Assume no dropped samples
-                            if(this.data.count >= this.maxBufferedSamples) { 
-                                // this.data["Ax"].splice(0,5120);
-                                // this.data["Ay"].splice(0,5120);
-                                // this.data["Az"].splice(0,5120);
-                                // this.data["Ax"].push(new Array(5120).fill(0))
-                                // this.data["Ay"].push(new Array(5120).fill(0))
-                                // this.data["Az"].push(new Array(5120).fill(0))
-                                this.data.count -= 5120;
                             }
-                            //console.log(this.data)
-                            newLines++;
+                            
+                            let channel = "A"+channelnum;
+                            //console.log(channel, i)
+                            //console.log(channel, line[i],line[i+1],line[i+2],i)
+                            this.data[channel][this.data.count-1]=this.bytesToInt24(line[i],line[i+1],line[i+2]);
+                            
+                            if(channel === 'A7') console.log(
+                                'A7',
+                                'Ct',
+                                this.data.count,
+                                'Reading',
+                                this.data[channel][this.data.count-1],
+                                '3 bytes',
+                                line[i],line[i+1],line[i+2],
+                                'indices',
+                                i,i+1,i+2,
+                                'buffer',
+                                line
+                                );
+                            
+                            if(this.data.count >= this.maxBufferedSamples) { 
+                                this.data[channel].splice(0,5120);
+                                this.data[channel].push(new Array(5120).fill(0));//shave off the last 10 seconds of data if buffer full (don't use shift())
+                            }
+
+                            if(offset === 0 || i === 2) {
+                            //line found, decode.
+                                if(this.data.count < this.maxBufferedSamples){
+                                    this.data.count++;
+                                }
+                                if(this.data.count-1 === 0) {this.data.ms[this.data.count-1]= Date.now(); this.data.startms = this.data.ms[0];}
+                                else {
+                                    this.data.ms[this.data.count-1]=this.data.ms[this.data.count-2]+this.updateMs;
+                                    
+                                    if(this.data.count >= this.maxBufferedSamples) {
+                                        this.data.ms.splice(0,5120);
+                                        this.data.ms.push(new Array(5120).fill(0));
+                                    }
+                                } //Assume no dropped samples
+                                if(this.data.count >= this.maxBufferedSamples) { 
+                                    this.data.count -= 5120;
+                                }
+                                //console.log(this.data)
+                                newLines++;
+                            }
+                            channelnum++;
                         }
-						let channel = "A"+channelnum;
-                        //console.log(channel, i)
-                        //console.log(channel, line[i],line[i+1],line[i+2])
-						this.data[channel][this.data.count-1]=this.bytesToInt24(line[i],line[i+1],line[i+2]);
-						if(this.data.count >= this.maxBufferedSamples) { 
-							this.data[channel].splice(0,5120);
-							this.data[channel].push(new Array(5120).fill(0));//shave off the last 10 seconds of data if buffer full (don't use shift())
-						}
+					} else if (this.mode === 'pulseox') {
+                        //RED,IR * 30, CT, END, START
+                        //console.log(line);
+                        let red = true;
+                        for(let i = 2; i < this.adcLength; i+=4) {
+                            //console.log(i)
+                            if(red == false) {
+                                
+                                let num = this.bytesToInt32(line[i],line[i+1],line[i+2],line[i+3]);
+                                if(isNaN(num)) {
+                                    console.log(line[i],line[i+1],line[i+2],line[i+3],i);                                
+                                    console.log(i);
+                                }
+                                
+                                this.data['IR'][this.data.count-1] = num
+                                if(this.data.count >= this.maxBufferedSamples) { 
+                                    this.data['IR'].splice(0,5120);
+                                    this.data['IR'].push(new Array(5120).fill(0));//shave off the last 10 seconds of data if buffer full (don't use shift())
+                                }
 
-                        // this.data["Ax"][this.data.count-1]=this.bytesToInt16(line[99],line[100]);
-                        // this.data["Ay"][this.data.count-1]=this.bytesToInt16(line[101],line[102]);
-                        // this.data["Az"][this.data.count-1]=this.bytesToInt16(line[103],line[104]);
+                                //console.log(this.data)
+                                newLines++;
+                                red = true;
+                            } else {
+                                if(this.data.count < this.maxBufferedSamples){
+                                    this.data.count++;
+                                }
 
-                        
-                        //console.log(indices[k-1],indices[k])
-                        //console.log(buffer[indices[k-1],buffer[indices[k]]])
-                        //indices.shift();
-							//console.log(this.data[channel][this.data.count-1],indices[k], channel)
-                        channelnum++;
-					}
+                                if(this.data.count-1 === 0) {
+                                    this.data.ms[this.data.count-1]= Date.now(); this.data.startms = this.data.ms[0];
+                                }
+                                else {
+                                    this.data.ms[this.data.count-1]=this.data.ms[this.data.count-2]+this.updateMs;
+                                    
+                                    if(this.data.count >= this.maxBufferedSamples) {
+                                        this.data.ms.splice(0,5120);
+                                        this.data.ms.push(new Array(5120).fill(0));
+                                    }
+                                } //Assume no dropped samples
+                                if(this.data.count >= this.maxBufferedSamples) { 
+                                    this.data.count -= 5120;
+                                }
+                                
+                                let num = this.bytesToInt32(line[i],line[i+1],line[i+2],line[i+3]);
+                                if(isNaN(num)) {
+                                    console.log(line[i],line[i+1],line[i+2],line[i+3],i);                                
+                                    console.log(i);
+                                }
+
+                                this.data['RED'][this.data.count-1] = num;
+                                if(this.data.count >= this.maxBufferedSamples) { 
+                                    this.data['RED'].splice(0,5120);
+                                    this.data['RED'].push(new Array(5120).fill(0));//shave off the last 10 seconds of data if buffer full (don't use shift())
+                                }
+                                red = false;
+                            }
+                        }
+                    }
 
 					
 				}
 				
 			}
-			if(newLines > 0) buffer.splice(0,indices[indices.length-1]-2);
+			if(newLines > 0) buffer.splice(0,indices[indices.length-1]);
 			return newLines;
 			//Continue
 		} return 0;
@@ -814,6 +908,11 @@ boyerMoore(patternBuffer) {
 
 
 <body>
+    <!-- Decoder:
+    <select>
+        <option value='ads131'>ADS131</option>
+        <option value='pulseox'>Pulse Ox</option>
+    </select><br> -->
     <div id='pa' style='width:100%;'></div>
     <div id='pb' style='width:100%;'></div>
     <div id='pc' style='width:100%;'></div>
@@ -830,57 +929,105 @@ boyerMoore(patternBuffer) {
         let plotY1 = [];
         let plotY2 = [];
 
+        let plotPointLimit = 600;
+        let fps = 10;
+
+        let ms = 1000/fps;
+
         //*********************************************
         //************** Customize me *****************
         //*********************************************
         let start = Date.now();
+
+        //let mode = 'ads131'; //ads131 pulseox
+        let mode = 'pulseox'; //ads131 pulseox
         
-        const ads = new ads131m08((newLinesInt) => {
-            let ch0 = ads.getLatestData('A0',newLinesInt);
-            let ch1 = ads.getLatestData('A1',newLinesInt);
-            let ch2 = ads.getLatestData('A2',newLinesInt);
-            let ch3 = ads.getLatestData('A3',newLinesInt);
-            let ch4 = ads.getLatestData('A4',newLinesInt);
-            let ch5 = ads.getLatestData('A5',newLinesInt);
-            let ch6 = ads.getLatestData('A6',newLinesInt);
-            let ch7 = ads.getLatestData('A7',newLinesInt);
-            let output;
-            if(Array.isArray(ch0)) {
-                output = [
-                    ch0[newLinesInt-1]*ads.uVperStep,
-                    ch1[newLinesInt-1]*ads.uVperStep,
-                    ch2[newLinesInt-1]*ads.uVperStep,
-                    ch3[newLinesInt-1]*ads.uVperStep,
-                    ch4[newLinesInt-1]*ads.uVperStep,
-                    ch5[newLinesInt-1]*ads.uVperStep,
-                    ch6[newLinesInt-1]*ads.uVperStep,
-                    ch7[newLinesInt-1]*ads.uVperStep
-                ]
-            }
-            else {
-                output = [ch0,ch1,ch2,ch3,ch4,ch5,ch6,ch7];
-                output = output.map(v => v*ads.uVperStep);
-            }
-            let elapsed = (Date.now() - start)*0.001;
-            //console.log("BLE MSG: ",...output.map(o => o.toFixed(3)));
+        const ads = new ads131m08(mode,(newLinesInt) => {
+            if(mode === 'pulseox') {
+                let red = ads.getLatestData('RED',newLinesInt);
+                let ir  = ads.getLatestData('IR',newLinesInt);
+                let output;
+                // console.log(red,ir)
+                //console.log(newLinesInt, red);
+                if(Array.isArray(red)) {
+                    output = [
+                        red[newLinesInt-1],
+                        ir[newLinesInt-1]
+                    ]
+                }
+                else {
+                    output = [red,ir];
+                }
+                let elapsed = ads.getLatestData('ms',newLinesInt).map(t => (t-start)*0.001);
+                
+                //console.log("BLE MSG: ",...output.map(o => o.toFixed(3)));
 
-            let outputdiv = document.getElementById('output');
-            outputdiv.innerHTML = ``;
-            if(outputdiv) output.forEach((o) => {
-                outputdiv.innerHTML+= `<tr><td>${o.toFixed(3)}</td><td>uV</td></tr>`;
-            });
-            let elapseddiv = document.getElementById('elapsed');
-            if(elapseddiv) elapseddiv.innerHTML = `${elapsed}`;
+                let outputdiv = document.getElementById('output');
+                outputdiv.innerHTML = ``;
+                if(outputdiv) output.forEach((o) => {
+                    outputdiv.innerHTML+= `<tr><td>${o.toFixed(3)}</td></tr>`;
+                });
+                let elapseddiv = document.getElementById('elapsed');
+                if(elapseddiv) elapseddiv.innerHTML = `${elapsed[elapsed.length-1]}`;
 
-            outputTimestamps.push(elapsed);
-            //console.log(ch0);
-            if(Array.isArray(ch0)) {
-                plotY1.push(...ch0.map(v => v*ads.uVperStep));
-                plotY2.push(...ch1.map(v => v*ads.uVperStep));
+                outputTimestamps.push(...elapsed);
+                //console.log(ch0);
+                if(Array.isArray(red)) {
+                    plotY1.push(...red);
+                    plotY2.push(...ir);
+                }
+                else {
+                    plotY1.push(red);
+                    plotY1.push(ir);
+                }
             }
-            else {
-                plotY1.push(ch0);
-                plotY1.push(ch1);
+            else if(mode === 'ads131') {
+                let ch0 = ads.getLatestData('A0',newLinesInt);
+                let ch1 = ads.getLatestData('A1',newLinesInt);
+                let ch2 = ads.getLatestData('A2',newLinesInt);
+                let ch3 = ads.getLatestData('A3',newLinesInt);
+                let ch4 = ads.getLatestData('A4',newLinesInt);
+                let ch5 = ads.getLatestData('A5',newLinesInt);
+                let ch6 = ads.getLatestData('A6',newLinesInt);
+                let ch7 = ads.getLatestData('A7',newLinesInt);
+                let output;
+                if(Array.isArray(ch0)) {
+                    output = [
+                        ch0[newLinesInt-1]*ads.uVperStep,
+                        ch1[newLinesInt-1]*ads.uVperStep,
+                        ch2[newLinesInt-1]*ads.uVperStep,
+                        ch3[newLinesInt-1]*ads.uVperStep,
+                        ch4[newLinesInt-1]*ads.uVperStep,
+                        ch5[newLinesInt-1]*ads.uVperStep,
+                        ch6[newLinesInt-1]*ads.uVperStep,
+                        ch7[newLinesInt-1]*ads.uVperStep
+                    ]
+                }
+                else {
+                    output = [ch0,ch1,ch2,ch3,ch4,ch5,ch6,ch7];
+                    output = output.map(v => v*ads.uVperStep);
+                }
+                let elapsed = ads.getLatestData('ms',newLinesInt).map(t => (t-start)*0.001);
+                //console.log("BLE MSG: ",...output.map(o => o.toFixed(3)));
+
+                let outputdiv = document.getElementById('output');
+                outputdiv.innerHTML = ``;
+                if(outputdiv) output.forEach((o) => {
+                    outputdiv.innerHTML+= `<tr><td>${o.toFixed(3)}</td><td>uV</td></tr>`;
+                });
+                let elapseddiv = document.getElementById('elapsed');
+                if(elapseddiv) elapseddiv.innerHTML = `${elapsed[elapsed.length-1]}`;
+
+                outputTimestamps.push(...elapsed);
+                //console.log(ch0);
+                if(Array.isArray(ch0)) {
+                    plotY1.push(...ch0.map(v => v*ads.uVperStep));
+                    plotY2.push(...ch1.map(v => v*ads.uVperStep));
+                }
+                else {
+                    plotY1.push(ch0);
+                    plotY1.push(ch1);
+                }
             }
         });
 
@@ -888,7 +1035,7 @@ boyerMoore(patternBuffer) {
         ble.onNotificationCallback = (e) => {
             let output = Array.from(new Uint8Array(e.target.value.buffer));
 
-            //console.log(output);
+            console.log('NOTIFIED');
             ads.onReceive([...output]);
         } 
         //*********************************************
@@ -926,13 +1073,10 @@ boyerMoore(patternBuffer) {
         Plotly.newPlot('pa',data,config);
         //Plotly.newPlot('pb',data,config);
 
-        let plotPointLimit = 100;
-        let fps = 10;
 
-        let ms = 1000/fps;
+
 
         let animate = () => {
-
 
             if(outputTimestamps.length > plotPointLimit || plotY1.length > plotPointLimit || plotY2.length > plotPointLimit) {
                 outputTimestamps.splice(0,outputTimestamps.length-plotPointLimit);
@@ -954,7 +1098,20 @@ boyerMoore(patternBuffer) {
                 }]
             };
 
-            Plotly.animate('pa', newData);
+            let animsetting = {
+                    transition: {
+                        duration: 0
+                    },
+                    frame: {
+                        duration: 0,
+                        redraw: false
+                    }
+                }
+
+            Plotly.animate(
+                'pa', 
+                newData,
+                [animsetting,animsetting]);
 
             setTimeout(()=>{animate();},ms); //
         }
