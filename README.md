@@ -1,14 +1,8 @@
-# BT832A_Zephyr
-Working repository for the BT832A test design. 
+# BT832_Zephyr
+Working repository for the nRF52 Zephyr firmware, made for the BT832A prototype (24KB)
 
-With PlatformIO installed and the Nordic nRF52 platform installed from the main menu:
+Recommended build tools: nRFConnect with VSCode.
 
-Place the bt832a_ads131m08.json in `C:/Users/[you]/.platformio/platforms/nordicnrf52/boards`
+You may need to manually install gnu-arm-embedded software. 
 
-Open the folder in vscode with platformIO extension installed and then click the platformIO start button (tiny home icon on bottom bar)
-
-There appears to be an MPU-6050 example for Zephyr here https://github.com/intel/zephyr/tree/master/drivers/sensor/mpu6050
-
-For MAX30101 (we are using the 30102 which has identical commands): https://github.com/intel/zephyr/tree/master/drivers/sensor/max30101
-
-Otherwise we need to convert the ADS131M08 drivers and add the MAX30001 drivers.
+We used the nRF52 development board which is a J-LINK device for flashing.

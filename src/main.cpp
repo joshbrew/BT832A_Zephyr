@@ -62,7 +62,7 @@ void main(void)
 
     Bluetooth::SetupBLE();
 
-    if(adc.writeReg(ADS131_CLOCK,0xFF1A)){  //< Clock register (page 55 in datasheet)
+    if(adc.writeReg(ADS131_CLOCK,0b1111111100011111)){  //< Clock register (page 55 in datasheet)
         //LOG_INF("ADS131_CLOCK register successfully configured");
     } else {
         LOG_ERR("***ERROR: Writing ADS131_CLOCK register.");
