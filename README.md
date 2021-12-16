@@ -1,5 +1,5 @@
 # BT832_Zephyr
-Working repository for the nRF52 Zephyr firmware, made for a BT832A prototype (24KB)
+Working repository for the nRF52 Zephyr firmware, made for a [BT832A prototype (24KB)](https://github.com/moothyknight/nRF52-Biosensing-Boards/CAD/BT832_OLD)
 
 Recommended build tools: nRFConnect with VSCode.
 
